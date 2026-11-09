@@ -321,7 +321,10 @@ impl NodeSet2Import {
         for data_type_definition in path_elements.into_iter().rev() {
             for field in &data_type_definition.fields {
                 // In general fields will not contain many entries, so a search on the vector is fine
-                if fields.iter().any(|f| f.name.as_ref() == field.name) {
+                if fields
+                    .iter()
+                    .any(|f| f.name.as_str().ok().flatten() == Some(field.name.as_str()))
+                {
                     // This field is overridden by a child, skip it
                     continue;
                 }
@@ -1160,13 +1163,13 @@ mod tests {
         let fields = enum_def.fields.as_ref().expect("Enum should have fields");
         assert_eq!(fields.len(), 3, "Enum should have 3 fields");
 
-        assert_eq!(fields[0].name.as_ref(), "None");
+        assert_eq!(fields[0].name.as_str().ok().flatten(), Some("None"));
         assert_eq!(fields[0].value, 0);
 
-        assert_eq!(fields[1].name.as_ref(), "Active");
+        assert_eq!(fields[1].name.as_str().ok().flatten(), Some("Active"));
         assert_eq!(fields[1].value, 1);
 
-        assert_eq!(fields[2].name.as_ref(), "Error");
+        assert_eq!(fields[2].name.as_str().ok().flatten(), Some("Error"));
         assert_eq!(fields[2].value, 2);
     }
 
@@ -1347,10 +1350,10 @@ mod tests {
             "Child struct should have 3 fields (2 inherited + 1 own)"
         );
         // Base fields must come first, in declaration order
-        assert_eq!(fields[0].name.as_ref(), "BaseField1");
-        assert_eq!(fields[1].name.as_ref(), "BaseField2");
+        assert_eq!(fields[0].name.as_str().ok().flatten(), Some("BaseField1"));
+        assert_eq!(fields[1].name.as_str().ok().flatten(), Some("BaseField2"));
         // Own field appended last
-        assert_eq!(fields[2].name.as_ref(), "ChildField1");
+        assert_eq!(fields[2].name.as_str().ok().flatten(), Some("ChildField1"));
     }
 
     #[test]
@@ -1392,8 +1395,14 @@ mod tests {
             3,
             "Derived struct should contain 3 fields (1 inherited + 2 own)"
         );
-        assert_eq!(fields[0].name.as_ref(), "BaseField");
-        assert_eq!(fields[1].name.as_ref(), "DerivedField1");
-        assert_eq!(fields[2].name.as_ref(), "DerivedField2");
+        assert_eq!(fields[0].name.as_str().ok().flatten(), Some("BaseField"));
+        assert_eq!(
+            fields[1].name.as_str().ok().flatten(),
+            Some("DerivedField1")
+        );
+        assert_eq!(
+            fields[2].name.as_str().ok().flatten(),
+            Some("DerivedField2")
+        );
     }
 }

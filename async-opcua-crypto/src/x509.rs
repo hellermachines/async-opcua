@@ -218,10 +218,32 @@ pub struct X509Data {
     pub certificate_duration_days: u32,
 }
 
-impl From<(ApplicationDescription, Option<Vec<String>>)> for X509Data {
-    fn from(v: (ApplicationDescription, Option<Vec<String>>)) -> Self {
+impl TryFrom<(ApplicationDescription, Option<Vec<String>>)> for X509Data {
+    type Error = Error;
+
+    fn try_from(v: (ApplicationDescription, Option<Vec<String>>)) -> Result<Self, Self::Error> {
         let (application_description, addresses) = v;
-        let application_uri = application_description.application_uri.as_ref();
+        let application_uri = application_description
+            .application_uri
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadCertificateInvalid,
+                    format!("Application URI is not valid UTF-8: {error}"),
+                )
+            })?
+            .unwrap_or("");
+        let application_name = application_description
+            .application_name
+            .text
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadCertificateInvalid,
+                    format!("Application name is not valid UTF-8: {error}"),
+                )
+            })?
+            .unwrap_or("[null]");
         let mut alt_host_names = AlternateNames::new();
         Self::compute_alt_host_names(
             &mut alt_host_names,
@@ -231,22 +253,24 @@ impl From<(ApplicationDescription, Option<Vec<String>>)> for X509Data {
             true,
             true,
         );
-        X509Data {
+        Ok(X509Data {
             key_size: DEFAULT_KEYSIZE,
-            common_name: application_description.application_name.to_string(),
-            organization: application_description.application_name.to_string(),
-            organizational_unit: application_description.application_name.to_string(),
+            common_name: application_name.to_owned(),
+            organization: application_name.to_owned(),
+            organizational_unit: application_name.to_owned(),
             country: DEFAULT_COUNTRY.to_string(),
             state: DEFAULT_STATE.to_string(),
             alt_host_names,
             certificate_duration_days: 365,
-        }
+        })
     }
 }
 
-impl From<ApplicationDescription> for X509Data {
-    fn from(v: ApplicationDescription) -> Self {
-        X509Data::from((v, None))
+impl TryFrom<ApplicationDescription> for X509Data {
+    type Error = Error;
+
+    fn try_from(v: ApplicationDescription) -> Result<Self, Self::Error> {
+        X509Data::try_from((v, None))
     }
 }
 
@@ -774,7 +798,10 @@ impl X509 {
                 Ok(())
             } else {
                 warn!("Did not find hostname {hostname} in alt names {subject_alt_names:?}");
-                Err(Error::new(StatusCode::BadCertificateHostNameInvalid, format!("Certificate hostname ({hostname}) not found in alt names ({subject_alt_names:?})")))
+                Err(Error::new(
+                    StatusCode::BadCertificateHostNameInvalid,
+                    format!("Certificate hostname ({hostname}) not found in alt names ({subject_alt_names:?})"),
+                ))
             }
         } else {
             // No alt names
@@ -869,6 +896,25 @@ impl X509 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_invalid_utf8_in_certificate_identity() {
+        let invalid_uri = ApplicationDescription {
+            application_uri: opcua_types::UAString::from(vec![0xff]),
+            ..Default::default()
+        };
+        assert!(X509Data::try_from(invalid_uri).is_err());
+
+        let invalid_name = ApplicationDescription {
+            application_uri: "urn:example".into(),
+            application_name: opcua_types::LocalizedText {
+                text: opcua_types::UAString::from(vec![0xff]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(X509Data::try_from(invalid_name).is_err());
+    }
 
     /*
         #[test]

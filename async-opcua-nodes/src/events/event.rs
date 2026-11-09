@@ -111,7 +111,10 @@ impl EventField for BaseEventType {
         if field.namespace_index != 0 {
             return Variant::Empty;
         }
-        match field.name.as_ref() {
+        let Ok(Some(name)) = field.name.as_str() else {
+            return Variant::Empty;
+        };
+        match name {
             "EventId" => self.event_id.get_value(attribute_id, index_range, &[]),
             "EventType" => self.event_type.get_value(attribute_id, index_range, &[]),
             "SourceNode" => self.source_node.get_value(attribute_id, index_range, &[]),
@@ -371,7 +374,10 @@ mod tests {
             Variant::ExtensionObject(o) => *o.into_inner_as().unwrap(),
             _ => panic!("Wrong variant type"),
         };
-        assert_eq!(euinfo.namespace_uri.as_ref(), "uri:my:namespace");
+        assert_eq!(
+            euinfo.namespace_uri.as_str().ok().flatten(),
+            Some("uri:my:namespace")
+        );
         assert_eq!(euinfo.unit_id, 15);
         assert_eq!(euinfo.display_name, "Some unit".into());
         assert_eq!(euinfo.description, "Some unit desc".into());

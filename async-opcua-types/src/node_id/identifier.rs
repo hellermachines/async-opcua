@@ -28,6 +28,18 @@ pub const IDENTIFIER_HASH_GUID: u8 = 2;
 /// Value used as discriminator when hashing byte string node IDs.
 pub const IDENTIFIER_HASH_BYTE_STRING: u8 = 3;
 
+struct IdentifierStringHash<'a>(&'a UAString);
+
+impl Hash for IdentifierStringHash<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self.0.as_str() {
+            Ok(Some(value)) => value.hash(state),
+            Ok(None) => "".hash(state),
+            Err(_) => self.0.as_bytes().hash(state),
+        }
+    }
+}
+
 impl std::hash::Hash for Identifier {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -37,7 +49,7 @@ impl std::hash::Hash for Identifier {
             }
             Identifier::String(v) => {
                 IDENTIFIER_HASH_STRING.hash(state);
-                v.as_ref().hash(state)
+                IdentifierStringHash(v).hash(state)
             }
             Identifier::Guid(v) => {
                 IDENTIFIER_HASH_GUID.hash(state);
@@ -162,14 +174,14 @@ impl_identifier_ref!(
     UAString,
     IDENTIFIER_HASH_STRING,
     Identifier::String(x),
-    x.as_ref()
+    IdentifierStringHash(x)
 );
 impl_identifier_ref!(
     x,
     &UAString,
     IDENTIFIER_HASH_STRING,
     Identifier::String(x),
-    x.as_ref(),
+    IdentifierStringHash(x),
     &x
 );
 impl_identifier_ref!(
@@ -178,7 +190,7 @@ impl_identifier_ref!(
     IDENTIFIER_HASH_STRING,
     Identifier::String(x),
     x.as_str(),
-    x.as_ref()
+    *x
 );
 impl_identifier_ref!(x, &str, IDENTIFIER_HASH_STRING, Identifier::String(x), x);
 impl_identifier_ref!(x, &String, IDENTIFIER_HASH_STRING, Identifier::String(x), x);

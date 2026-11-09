@@ -242,20 +242,24 @@ pub fn copy_shared_certs(test_id: u16, desc: &ApplicationDescription) {
     if !Path::new("certs").exists() {
         std::fs::create_dir_all("certs/server").unwrap();
         std::fs::create_dir_all("certs/client").unwrap();
-        CertificateStore::create_certificate_and_key(
-            &desc.clone().into(),
-            true,
-            Path::new("certs/server/cert.der"),
-            Path::new("certs/server/private.pem"),
-        )
-        .unwrap();
-        CertificateStore::create_certificate_and_key(
-            &desc.clone().into(),
-            true,
-            Path::new("certs/client/cert.der"),
-            Path::new("certs/client/private.pem"),
-        )
-        .unwrap();
+        let data = opcua::crypto::X509Data::try_from(desc.clone());
+        assert!(data.is_ok(), "invalid test certificate identity");
+        if let Ok(data) = data {
+            CertificateStore::create_certificate_and_key(
+                &data,
+                true,
+                Path::new("certs/server/cert.der"),
+                Path::new("certs/server/private.pem"),
+            )
+            .unwrap();
+            CertificateStore::create_certificate_and_key(
+                &data,
+                true,
+                Path::new("certs/client/cert.der"),
+                Path::new("certs/client/private.pem"),
+            )
+            .unwrap();
+        }
     }
 
     std::fs::create_dir_all(format!("pki-server/{test_id}/own")).unwrap();

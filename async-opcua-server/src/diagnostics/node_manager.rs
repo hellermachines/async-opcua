@@ -104,9 +104,14 @@ impl DiagnosticsNodeManager {
     pub(crate) fn new(context: ServerContext) -> Self {
         let namespace_index = {
             let mut type_tree = context.type_tree.write();
-            type_tree
-                .namespaces_mut()
-                .add_namespace(context.info.application_uri.as_ref())
+            let application_uri = context
+                .info
+                .application_uri
+                .as_str()
+                .ok()
+                .flatten()
+                .unwrap_or("");
+            type_tree.namespaces_mut().add_namespace(application_uri)
         };
         Self {
             sampler: SyncSampler::new(),
@@ -560,7 +565,14 @@ impl NodeManager for DiagnosticsNodeManager {
 
     fn namespaces_for_user(&self, context: &RequestContext) -> Vec<NamespaceMetadata> {
         vec![NamespaceMetadata {
-            namespace_uri: context.info.application_uri.as_ref().to_owned(),
+            namespace_uri: context
+                .info
+                .application_uri
+                .as_str()
+                .ok()
+                .flatten()
+                .unwrap_or("")
+                .to_owned(),
             is_namespace_subset: Some(false),
             static_node_id_types: Some(vec![IdType::Opaque]),
             namespace_index: self.namespace_index,

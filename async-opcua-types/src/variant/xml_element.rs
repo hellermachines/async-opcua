@@ -114,7 +114,16 @@ mod xml {
             writer: &mut XmlStreamWriter<&mut dyn std::io::Write>,
             _context: &Context<'_>,
         ) -> EncodingResult<()> {
-            writer.write_raw(self.0.as_ref().as_bytes())?;
+            let value = self
+                .0
+                .as_str()
+                .map_err(|error| {
+                    crate::Error::encoding(format!(
+                        "Cannot encode invalid UTF-8 XmlElement as XML: {error}"
+                    ))
+                })?
+                .unwrap_or("");
+            writer.write_raw(value.as_bytes())?;
             Ok(())
         }
     }

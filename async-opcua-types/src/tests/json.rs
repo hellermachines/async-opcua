@@ -58,7 +58,7 @@ fn serialize_string() {
     assert_eq!(json, "null");
 
     let s: UAString = from_value(json!("Hello World!")).unwrap();
-    assert_eq!(s.as_ref(), "Hello World!");
+    assert_eq!(s.as_str().ok().flatten(), Some("Hello World!"));
 
     let json = to_string(&UAString::from("Hello World!")).unwrap();
     println!("hw str = {json}");
@@ -67,6 +67,21 @@ fn serialize_string() {
     let json = to_string(&UAString::from("")).unwrap();
     println!("empty str = {json}");
     assert_eq!(json, r#""""#);
+}
+
+#[test]
+fn invalid_utf8_strings_cannot_be_encoded_as_json() {
+    let invalid = UAString::from(vec![b'A', 0xff]);
+    assert!(to_string(&invalid).is_err());
+    assert!(to_string(&Variant::String(invalid.clone())).is_err());
+    assert!(to_string(&NodeId::new(0, invalid.clone())).is_err());
+    assert!(to_string(&QualifiedName::new(0, invalid.clone())).is_err());
+    let expanded = ExpandedNodeId {
+        node_id: NodeId::new(0, 1u32),
+        namespace_uri: invalid,
+        server_index: 0,
+    };
+    assert!(to_string(&expanded).is_err());
 }
 
 #[test]

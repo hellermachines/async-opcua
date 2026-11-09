@@ -12,7 +12,7 @@ impl PartialEq<(u16, &str)> for NodeId {
     fn eq(&self, other: &(u16, &str)) -> bool {
         self.namespace == other.0
             && match &self.identifier {
-                Identifier::String(s) => s.as_ref() == other.1,
+                Identifier::String(s) => s.as_str().ok().flatten() == Some(other.1),
                 _ => false,
             }
     }

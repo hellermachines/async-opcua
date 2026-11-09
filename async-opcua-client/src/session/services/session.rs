@@ -216,20 +216,46 @@ impl UARequest for CreateSession<'_> {
                         .inspect_err(|e| error!("Failed to parse channel certificate: {e}"))?;
                 if server_certificate.as_byte_string() != channel_certificate.as_byte_string() {
                     error!("Server certificate in CreateSession response does not match channel certificate");
-                    return Err(Error::new(StatusCode::BadCertificateInvalid, "Server certificate in CreateSession response does not match channel certificate"));
+                    return Err(Error::new(
+                        StatusCode::BadCertificateInvalid,
+                        "Server certificate in CreateSession response does not match channel certificate",
+                    ));
                 }
                 // Validate server certificate against hostname and application_uri
-                let hostname =
-                    hostname_from_url(self.endpoint.endpoint_url.as_ref()).map_err(|e| {
+                let endpoint_url = self
+                    .endpoint
+                    .endpoint_url
+                    .as_str()
+                    .map_err(|error| {
                         Error::new(
-                            StatusCode::BadUnexpectedError,
-                            format!(
-                                "Failed to extract hostname from endpoint URL ({}): {e}",
-                                self.endpoint.endpoint_url
-                            ),
+                            StatusCode::BadTcpEndpointUrlInvalid,
+                            format!("Endpoint URL is not valid UTF-8: {error}"),
                         )
+                    })?
+                    .ok_or_else(|| {
+                        Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null")
                     })?;
-                let application_uri = self.endpoint.server.application_uri.as_ref();
+                let hostname = hostname_from_url(endpoint_url).map_err(|e| {
+                    Error::new(
+                        StatusCode::BadUnexpectedError,
+                        format!(
+                            "Failed to extract hostname from endpoint URL ({}): {e}",
+                            self.endpoint.endpoint_url
+                        ),
+                    )
+                })?;
+                let application_uri = self
+                    .endpoint
+                    .server
+                    .application_uri
+                    .as_str()
+                    .map_err(|error| {
+                        Error::new(
+                            StatusCode::BadCertificateInvalid,
+                            format!("Application URI is not valid UTF-8: {error}"),
+                        )
+                    })?
+                    .unwrap_or("");
 
                 let certificate_store = trace_write_lock!(self.certificate_store);
                 certificate_store
@@ -407,16 +433,24 @@ impl ActivateSession {
             );
             return Err(Error::new(
                 StatusCode::BadSecurityPolicyRejected,
-                format!(
-                    "Cannot find user token type {user_token_type:?} for this endpoint, cannot connect"
-                ),
+                format!("Cannot find user token type {user_token_type:?} for this endpoint, cannot connect"),
             ));
         };
         let security_policy = if policy.security_policy_uri.is_empty() {
             // Assume None
             SecurityPolicy::None
         } else {
-            SecurityPolicy::from_uri(policy.security_policy_uri.as_ref())
+            let policy_uri = policy
+                .security_policy_uri
+                .as_str()
+                .map_err(|error| {
+                    Error::new(
+                        StatusCode::BadSecurityPolicyRejected,
+                        format!("Security policy URI is not valid UTF-8: {error}"),
+                    )
+                })?
+                .unwrap_or("");
+            SecurityPolicy::from_uri(policy_uri)
         };
 
         if security_policy == SecurityPolicy::Unknown {
@@ -461,8 +495,13 @@ impl ActivateSession {
                 let nonce = remote_nonce.as_ref();
                 let server_cert = remote_cert;
                 let Some(server_cert) = &server_cert else {
-                    error!("Cannot create an X509IdentityToken because the remote server has no cert with which to create a signature");
-                    return Err(Error::new(StatusCode::BadCertificateInvalid, "Cannot create an X509IdentityToken because the remote server has no cert with which to create a signature"));
+                    error!(
+                        "Cannot create an X509IdentityToken because the remote server has no cert with which to create a signature"
+                    );
+                    return Err(Error::new(
+                        StatusCode::BadCertificateInvalid,
+                        "Cannot create an X509IdentityToken because the remote server has no cert with which to create a signature",
+                    ));
                 };
 
                 let user_token_signature = opcua_crypto::create_signature_data(

@@ -243,7 +243,15 @@ impl<T: FnMut(&NodeId) -> bool> DataTypeTreeBuilder<T> {
             let encoding_ids = info.encoding_ids.get_or_insert_default();
 
             for rf in refs {
-                match rf.browse_name.name.as_ref() {
+                let browse_name = rf
+                    .browse_name
+                    .name
+                    .as_str()
+                    .map_err(|error| {
+                        Error::decoding(format!("Encoding browse name is not valid UTF-8: {error}"))
+                    })?
+                    .unwrap_or("");
+                match browse_name {
                     "Default Binary" => encoding_ids.binary_id = rf.node_id.node_id,
                     "Default XML" => encoding_ids.xml_id = rf.node_id.node_id,
                     "Default JSON" => encoding_ids.json_id = rf.node_id.node_id,

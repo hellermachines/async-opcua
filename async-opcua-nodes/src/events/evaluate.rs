@@ -282,10 +282,16 @@ impl ParsedContentFilter {
     fn like(lhs: Variant, rhs: Variant) -> bool {
         let lhs = as_type!(lhs, String, false);
         let rhs = as_type!(rhs, String, false);
-        let Ok(re) = like_to_regex(rhs.as_ref()) else {
+        let Ok(Some(lhs)) = lhs.as_str() else {
             return false;
         };
-        re.is_match(lhs.as_ref())
+        let Ok(Some(rhs)) = rhs.as_str() else {
+            return false;
+        };
+        let Ok(re) = like_to_regex(rhs) else {
+            return false;
+        };
+        re.is_match(lhs)
     }
 
     fn cast(lhs: Variant, rhs: Variant) -> Variant {

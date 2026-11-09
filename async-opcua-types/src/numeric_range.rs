@@ -92,7 +92,9 @@ impl NumericRange {
     }
 
     fn from_ua_string(str: UAString) -> Result<Self, Error> {
-        str.as_ref()
+        str.as_str()
+            .map_err(|error| Error::decoding(format!("NumericRange was not valid UTF-8: {error}")))?
+            .unwrap_or("")
             .parse::<NumericRange>()
             .map_err(Error::decoding)
     }

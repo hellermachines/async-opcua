@@ -303,26 +303,33 @@ impl AsyncSecureChannel {
         connector: &T,
     ) -> Result<(T::Transport, tokio::sync::mpsc::Sender<OutgoingMessage>), Error> {
         debug!("Connect");
-        let security_policy =
-            SecurityPolicy::from_str(self.endpoint_info.endpoint.security_policy_uri.as_ref())
-                .map_err(|_| {
-                    Error::new(
-                        StatusCode::BadSecurityPolicyRejected,
-                        "Unknown security policy",
-                    )
-                })?;
+        let security_policy_uri = self
+            .endpoint_info
+            .endpoint
+            .security_policy_uri
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadSecurityPolicyRejected,
+                    format!("Security policy URI is not valid UTF-8: {error}"),
+                )
+            })?
+            .unwrap_or("");
+        let security_policy = SecurityPolicy::from_str(security_policy_uri).map_err(|_| {
+            Error::new(
+                StatusCode::BadSecurityPolicyRejected,
+                "Unknown security policy",
+            )
+        })?;
 
         if security_policy == SecurityPolicy::Unknown {
             error!(
                 "connect, security policy \"{}\" is unknown",
-                self.endpoint_info.endpoint.security_policy_uri.as_ref()
+                security_policy_uri
             );
             Err(Error::new(
                 StatusCode::BadSecurityPolicyRejected,
-                format!(
-                    "security policy \"{}\" is unknown",
-                    self.endpoint_info.endpoint.security_policy_uri
-                ),
+                format!("security policy \"{security_policy_uri}\" is unknown"),
             ))
         } else {
             let (cert, key) = {

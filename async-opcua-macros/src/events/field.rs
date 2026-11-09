@@ -61,7 +61,7 @@ pub(crate) fn generate_event_field_impls(event: EventFieldStruct) -> syn::Result
                 }),
                 _ => get_arms.extend(quote! {
                     #name => self.#ident.get_value(attribute_id, index_range, browse_path.get(1..).unwrap_or(&[])),
-                })
+                }),
             }
         } else {
             get_arms.extend(quote! {
@@ -89,7 +89,10 @@ pub(crate) fn generate_event_field_impls(event: EventFieldStruct) -> syn::Result
                     return opcua::types::Variant::Empty;
                 }
                 let field = &browse_path[0];
-                match field.name.as_ref() {
+                let Ok(Some(field_name)) = field.name.as_str() else {
+                    return opcua::types::Variant::Empty;
+                };
+                match field_name {
                     #get_arms
                     #final_arm
                 }

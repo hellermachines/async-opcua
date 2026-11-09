@@ -272,7 +272,8 @@ async fn connect_when_the_endpoint_certificate_carries_a_chain() {
         .unwrap()
         .into_iter()
         .find(|e| {
-            e.security_policy_uri.as_ref() == SecurityPolicy::Basic256Sha256.to_uri()
+            e.security_policy_uri.as_str().ok().flatten()
+                == Some(SecurityPolicy::Basic256Sha256.to_uri())
                 && e.security_mode == MessageSecurityMode::SignAndEncrypt
         })
         .unwrap();
@@ -309,9 +310,18 @@ async fn find_servers() {
     let discovery_urls = s.discovery_urls.as_ref().unwrap();
     assert!(!discovery_urls.is_empty());
     assert_eq!(s.application_type, ApplicationType::Server);
-    assert_eq!(s.application_name.text.as_ref(), "integration_server");
-    assert_eq!(s.application_uri.as_ref(), "urn:integration_server");
-    assert_eq!(s.product_uri.as_ref(), "urn:integration_server Testkit");
+    assert_eq!(
+        s.application_name.text.as_str().ok().flatten(),
+        Some("integration_server")
+    );
+    assert_eq!(
+        s.application_uri.as_str().ok().flatten(),
+        Some("urn:integration_server")
+    );
+    assert_eq!(
+        s.product_uri.as_str().ok().flatten(),
+        Some("urn:integration_server Testkit")
+    );
 }
 
 #[tokio::test]

@@ -55,7 +55,19 @@ pub struct DirectConnectionSource;
 impl ConnectionSource for DirectConnectionSource {
     type Builder = String;
     fn get_connector(&self, endpoint: &EndpointDescription) -> Result<Self::Builder, Error> {
-        Ok(endpoint.endpoint_url.as_ref().to_string())
+        let endpoint_url = endpoint
+            .endpoint_url
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    format!("Endpoint URL is not valid UTF-8: {error}"),
+                )
+            })?
+            .ok_or_else(|| {
+                Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null")
+            })?;
+        Ok(endpoint_url.to_owned())
     }
 }
 
@@ -232,28 +244,43 @@ impl<'a, C> SessionBuilder<'a, (), Vec<EndpointDescription>, C> {
     ) -> Result<SessionBuilder<'a, EndpointDescription, Vec<EndpointDescription>, C>, Error> {
         let endpoint = endpoint.into();
 
-        let security_policy = SecurityPolicy::from_str(endpoint.security_policy_uri.as_ref())
-            .map_err(|_| {
+        let security_policy_uri = endpoint
+            .security_policy_uri
+            .as_str()
+            .map_err(|error| {
                 Error::new(
                     StatusCode::BadSecurityPolicyRejected,
-                    format!(
-                        "Invalid security policy: {}",
-                        endpoint.security_policy_uri.as_ref()
-                    ),
+                    format!("Security policy URI is not valid UTF-8: {error}"),
                 )
+            })?
+            .unwrap_or("");
+        let security_policy = SecurityPolicy::from_str(security_policy_uri).map_err(|_| {
+            Error::new(
+                StatusCode::BadSecurityPolicyRejected,
+                format!("Invalid security policy: {security_policy_uri}"),
+            )
+        })?;
+        let endpoint_url = endpoint
+            .endpoint_url
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    format!("Endpoint URL is not valid UTF-8: {error}"),
+                )
+            })?
+            .ok_or_else(|| {
+                Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null")
             })?;
         let server_endpoint = Client::find_matching_endpoint(
             &self.endpoints,
-            endpoint.endpoint_url.as_ref(),
+            endpoint_url,
             security_policy,
             endpoint.security_mode,
         )
         .ok_or(Error::new(
             StatusCode::BadTcpEndpointUrlInvalid,
-            format!(
-                "Cannot find matching endpoint for {}",
-                endpoint.endpoint_url.as_ref()
-            ),
+            format!("Cannot find matching endpoint for {}", endpoint_url),
         ))?;
 
         Ok(SessionBuilder {
@@ -368,13 +395,22 @@ impl<'a, R, C> SessionBuilder<'a, (), R, C> {
         endpoint: impl Into<EndpointDescription>,
     ) -> Result<SessionBuilder<'a, EndpointDescription, R, C>, Error> {
         let endpoint = endpoint.into();
-        if !is_opc_ua_binary_url(endpoint.endpoint_url.as_ref()) {
+        let endpoint_url = endpoint
+            .endpoint_url
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    format!("Endpoint URL is not valid UTF-8: {error}"),
+                )
+            })?
+            .ok_or_else(|| {
+                Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null")
+            })?;
+        if !is_opc_ua_binary_url(endpoint_url) {
             return Err(Error::new(
                 StatusCode::BadTcpEndpointUrlInvalid,
-                format!(
-                    "Endpoint url {} is not a valid / supported url",
-                    endpoint.endpoint_url
-                ),
+                format!("Endpoint url {endpoint_url} is not a valid / supported url"),
             ));
         }
         Ok(SessionBuilder {

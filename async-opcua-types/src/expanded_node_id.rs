@@ -112,7 +112,7 @@ mod json {
             }
             if !self.namespace_uri.is_null() {
                 stream.name("Namespace")?;
-                stream.string_value(self.namespace_uri.as_ref())?;
+                crate::json::JsonEncodable::encode(&self.namespace_uri, stream, ctx)?;
             } else if self.node_id.namespace != 0 {
                 stream.name("Namespace")?;
                 stream.number_value(self.node_id.namespace)?;
@@ -455,8 +455,15 @@ impl fmt::Display for ExpandedNodeId {
             // svr=<serverindex>;ns=<namespaceindex>;<type>=<value>
             write!(f, "svr={};{}", self.server_index, self.node_id)
         } else {
+            let Ok(Some(namespace_uri)) = self.namespace_uri.as_str() else {
+                return write!(
+                    f,
+                    "svr={};nsu={};{}",
+                    self.server_index, self.namespace_uri, self.node_id.identifier
+                );
+            };
             // The % and ; chars have to be escaped out in the uri
-            let namespace_uri = String::from(self.namespace_uri.as_ref())
+            let namespace_uri = String::from(namespace_uri)
                 .replace('%', "%25")
                 .replace(';', "%3b");
             // svr=<serverindex>;nsu=<uri>;<type>=<value>
@@ -568,14 +575,15 @@ impl ExpandedNodeId {
         if self.server_index != 0 {
             return None;
         }
-        if let Some(uri) = self.namespace_uri.value() {
+        if self.namespace_uri.is_null() {
+            Some(Cow::Borrowed(&self.node_id))
+        } else {
+            let uri = self.namespace_uri.as_str().ok().flatten()?;
             let idx = namespaces.get_index(uri)?;
             Some(Cow::Owned(NodeId {
                 namespace: idx,
                 identifier: self.node_id.identifier.clone(),
             }))
-        } else {
-            Some(Cow::Borrowed(&self.node_id))
         }
     }
 }

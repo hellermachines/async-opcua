@@ -71,7 +71,16 @@ pub fn legacy_decrypt_secret(
         Ok(secret.raw_secret().clone())
     } else {
         // Determine the padding from the algorithm.
-        let encryption_algorithm = secret.encryption_algorithm().as_ref();
+        let encryption_algorithm = secret
+            .encryption_algorithm()
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadIdentityTokenInvalid,
+                    format!("Invalid UTF-8 in the encryption algorithm identifier: {error}"),
+                )
+            })?
+            .unwrap_or("");
         match encryption_algorithm {
             super::algorithms::ENC_RSA_15 => {
                 legacy_secret_decrypt::<Pkcs1v15>(secret.raw_secret(), server_nonce, server_key)
@@ -83,7 +92,10 @@ pub fn legacy_decrypt_secret(
                 legacy_secret_decrypt::<OaepSha256>(secret.raw_secret(), server_nonce, server_key)
             }
             r => {
-                error!("decrypt_user_identity_token_password has rejected unsupported user identity encryption algorithm \"{}\"", encryption_algorithm);
+                error!(
+                    "decrypt_user_identity_token_password has rejected unsupported user identity encryption algorithm \"{}\"",
+                    encryption_algorithm
+                );
                 Err(Error::new(
                     StatusCode::BadIdentityTokenInvalid,
                     format!("Identity token rejected, unsupported encryption algorithm {r}"),
@@ -121,7 +133,17 @@ pub fn legacy_encrypt_secret(
     let token_security_policy = if user_token_policy.security_policy_uri.is_empty() {
         None
     } else {
-        Some(SecurityPolicy::from_str(user_token_policy.security_policy_uri.as_ref()).unwrap())
+        let policy_uri = user_token_policy
+            .security_policy_uri
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadSecurityPolicyRejected,
+                    format!("Invalid UTF-8 in the user token security policy URI: {error}"),
+                )
+            })?
+            .unwrap_or("");
+        Some(SecurityPolicy::from_str(policy_uri).unwrap())
     };
 
     // This is an implementation of Table 193 in OPC-UA Part 4, 7.41
@@ -156,7 +178,7 @@ pub fn legacy_encrypt_secret(
             return Err(Error::new(
                 StatusCode::BadSecurityPolicyRejected,
                 "User token policy security policy is None but message security mode is Sign",
-            ))
+            ));
         }
         (_, MessageSecurityMode::Sign | MessageSecurityMode::SignAndEncrypt, Some(p)) => {
             EncryptionMode::AsymmetricFor(p)
@@ -178,7 +200,9 @@ pub fn legacy_encrypt_secret(
                     MessageSecurityMode::None | MessageSecurityMode::Sign
                 )
             {
-                warn!("A user identity's password is being sent over the network in plain text. This could be a serious security issue");
+                warn!(
+                    "A user identity's password is being sent over the network in plain text. This could be a serious security issue"
+                );
             }
             Ok(LegacyEncryptedSecret {
                 secret: ByteString::from(secret_to_encrypt),

@@ -10,6 +10,9 @@ use std::{
     io::{Read, Write},
 };
 
+#[cfg(feature = "xml")]
+use bstr::ByteSlice;
+
 use crate::{write_i32, write_u8, Error, ExpandedMessageInfo, ExpandedNodeId, UaNullable};
 
 use super::{
@@ -375,11 +378,15 @@ mod json {
                     }
                     #[cfg(not(feature = "xml"))]
                     {
-                        tracing::warn!("XML feature is not enabled, deserializing XML payloads in JSON extension objects is not supported");
+                        tracing::warn!(
+                            "XML feature is not enabled, deserializing XML payloads in JSON extension objects is not supported"
+                        );
                         Ok(ExtensionObject::null())
                     }
                 } else {
-                    Err(Error::decoding(format!("Unsupported extension object encoding, expected 1 or 2 for string, got {encoding}")))
+                    Err(Error::decoding(format!(
+                        "Unsupported extension object encoding, expected 1 or 2 for string, got {encoding}"
+                    )))
                 }
             } else {
                 Err(Error::decoding("Missing extension object body"))

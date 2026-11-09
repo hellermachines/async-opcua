@@ -32,6 +32,18 @@ use super::{
     Session, SessionEventLoop,
 };
 
+fn require_endpoint_url(value: &UAString) -> Result<&str, Error> {
+    value
+        .as_str()
+        .map_err(|error| {
+            Error::new(
+                StatusCode::BadTcpEndpointUrlInvalid,
+                format!("Endpoint URL is not valid UTF-8: {error}"),
+            )
+        })?
+        .ok_or_else(|| Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null"))
+}
+
 /// Wrapper around common data for generating sessions and performing requests
 /// with one-shot connections.
 pub struct Client {
@@ -65,7 +77,9 @@ impl Client {
                 application_description,
             );
         if client_certificate.is_none() || client_pkey.is_none() {
-            error!("Client is missing its application instance certificate and/or its private key. Encrypted endpoints will not function correctly.")
+            error!(
+                "Client is missing its application instance certificate and/or its private key. Encrypted endpoints will not function correctly."
+            )
         }
 
         // Clients may choose to skip additional server certificate validations
@@ -134,7 +148,7 @@ impl Client {
         let endpoint = endpoint.into();
 
         // Get the server endpoints
-        let server_url = endpoint.endpoint_url.as_ref();
+        let server_url = require_endpoint_url(&endpoint.endpoint_url)?;
 
         self.session_builder()
             .with_endpoints(self.get_server_endpoints_from_url(server_url).await?)
@@ -603,14 +617,22 @@ impl Client {
             .find(|e| {
                 // Endpoint matches if the security mode, policy and url match
                 security_mode == e.security_mode
-                    && security_policy == SecurityPolicy::from_uri(e.security_policy_uri.as_ref())
-                    && url_matches_except_host(endpoint_url, e.endpoint_url.as_ref())
+                    && e.security_policy_uri
+                        .as_str()
+                        .ok()
+                        .flatten()
+                        .is_some_and(|uri| security_policy == SecurityPolicy::from_uri(uri))
+                    && e.endpoint_url
+                        .as_str()
+                        .ok()
+                        .flatten()
+                        .is_some_and(|url| url_matches_except_host(endpoint_url, url))
             })
             .cloned()?;
 
         let hostname = hostname_from_url(endpoint_url).ok()?;
-        let new_endpoint_url =
-            url_with_replaced_hostname(matching_endpoint.endpoint_url.as_ref(), &hostname).ok()?;
+        let matching_url = require_endpoint_url(&matching_endpoint.endpoint_url).ok()?;
+        let new_endpoint_url = url_with_replaced_hostname(matching_url, &hostname).ok()?;
 
         // Issue #16, #17 - the server may advertise an endpoint whose hostname is inaccessible
         // to the client so substitute the advertised hostname with the one the client supplied.
@@ -628,12 +650,13 @@ impl Client {
     ///
     /// * `bool` - `true` if the endpoint is supported.
     pub fn is_supported_endpoint(&self, endpoint: &EndpointDescription) -> bool {
-        if let Ok(security_policy) = SecurityPolicy::from_str(endpoint.security_policy_uri.as_ref())
-        {
-            !matches!(security_policy, SecurityPolicy::Unknown)
-        } else {
-            false
-        }
+        endpoint
+            .security_policy_uri
+            .as_str()
+            .ok()
+            .flatten()
+            .and_then(|uri| SecurityPolicy::from_str(uri).ok())
+            .is_some_and(|security_policy| !matches!(security_policy, SecurityPolicy::Unknown))
     }
 
     async fn register_server_inner(
@@ -664,11 +687,9 @@ impl Client {
         discovery_endpoint: impl ConnectorBuilder,
     ) -> Result<EndpointDescription, Error> {
         let discovery_endpoint = discovery_endpoint.build()?;
-        let endpoints = self
-            .get_server_endpoints_from_url(
-                discovery_endpoint.default_endpoint().endpoint_url.as_ref(),
-            )
-            .await?;
+        let default_endpoint = discovery_endpoint.default_endpoint();
+        let endpoint_url = require_endpoint_url(&default_endpoint.endpoint_url)?;
+        let endpoints = self.get_server_endpoints_from_url(endpoint_url).await?;
         if endpoints.is_empty() {
             return Err(Error::new(
                 StatusCode::BadUnexpectedError,

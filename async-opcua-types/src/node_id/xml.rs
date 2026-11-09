@@ -16,6 +16,13 @@ impl XmlEncodable for NodeId {
         writer: &mut XmlStreamWriter<&mut dyn Write>,
         ctx: &crate::xml::Context<'_>,
     ) -> Result<(), Error> {
+        if let super::Identifier::String(value) = &self.identifier {
+            let _ = value.as_str().map_err(|error| {
+                Error::encoding(format!(
+                    "Cannot encode invalid UTF-8 NodeId as XML: {error}"
+                ))
+            })?;
+        }
         let namespace_index = ctx.resolve_namespace_index_inverse(self.namespace)?;
 
         let self_str = if namespace_index > 0 {

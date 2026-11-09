@@ -57,6 +57,16 @@ fn xml_round_trip<T: XmlDecodable + XmlEncodable + PartialEq + std::fmt::Debug>(
 }
 
 #[test]
+fn invalid_utf8_strings_cannot_be_encoded_as_xml() {
+    let owned = ContextOwned::default();
+    let context = owned.context();
+    let invalid = UAString::from(vec![b'A', 0xff]);
+    assert!(encode_xml_ctx(&invalid, &context).is_err());
+    assert!(encode_xml_ctx(&NodeId::new(0, invalid.clone()), &context).is_err());
+    assert!(encode_xml_ctx(&QualifiedName::new(0, invalid), &context).is_err());
+}
+
+#[test]
 fn from_xml_u8() {
     xml_round_trip(&5u8, "5");
 }

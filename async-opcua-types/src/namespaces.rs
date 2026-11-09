@@ -34,7 +34,13 @@ impl NamespaceMap {
             .enumerate()
             .map(|(idx, v)| {
                 if let Variant::String(s) = v {
-                    Ok((s.value().clone().unwrap_or(String::new()), idx as u16))
+                    let namespace =
+                        s.as_str()
+                            .map_err(|error| OpcUaError::UnexpectedVariantType {
+                                variant_id: v.scalar_type_id(),
+                                message: format!("Namespace array contains invalid UTF-8: {error}"),
+                            })?;
+                    Ok((namespace.unwrap_or_default().to_owned(), idx as u16))
                 } else {
                     Err(OpcUaError::UnexpectedVariantType {
                         variant_id: v.scalar_type_id(),

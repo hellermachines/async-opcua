@@ -393,7 +393,13 @@ impl SessionController {
                 let _h = span.enter();
                 let mut desc = self.info.config.application_description();
                 // Name the host that the client dialled, as GetEndpoints does.
-                if let Ok(hostname) = hostname_from_url(request.endpoint_url.as_ref()) {
+                if let Some(hostname) = request
+                    .endpoint_url
+                    .as_str()
+                    .ok()
+                    .flatten()
+                    .and_then(|url| hostname_from_url(url).ok())
+                {
                     desc.discovery_urls = desc
                         .discovery_urls
                         .map(|urls| urls.iter().map(|u| with_host(u, &hostname)).collect());

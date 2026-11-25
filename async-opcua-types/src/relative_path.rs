@@ -132,7 +132,7 @@ impl<'a> From<&'a RelativePathElement> for String {
             .relative_path_reference_type(&RelativePathElement::default_browse_name_resolver);
         if !element.target_name.name.is_null() {
             let always_use_namespace = true;
-            let target_browse_name = escape_browse_name(element.target_name.name.as_ref());
+            let target_browse_name = escape_browse_name(&element.target_name.name.to_string());
             if always_use_namespace || element.target_name.namespace_index > 0 {
                 result.push_str(&format!(
                     "{}:{}",
@@ -236,7 +236,7 @@ impl RelativePathElement {
 
     fn default_browse_name_resolver(node_id: &NodeId) -> Option<String> {
         match &node_id.identifier {
-            Identifier::String(browse_name) => Some(browse_name.as_ref().to_string()),
+            Identifier::String(browse_name) => Some(browse_name.to_string()),
             Identifier::Numeric(id) => {
                 if node_id.namespace == 0 {
                     Self::id_from_reference_type(*id)
@@ -276,7 +276,8 @@ impl RelativePathElement {
         CB: Fn(u16, &str) -> Option<NodeId>,
     {
         static RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(?P<reftype>/|\.|(<(?P<flags>#|!|#!)?((?P<nsidx>[0-9]+):)?(?P<name>[^#!].*)>))(?P<target>.*)").unwrap()
+            Regex::new(r"(?P<reftype>/|\.|(<(?P<flags>#|!|#!)?((?P<nsidx>[0-9]+):)?(?P<name>[^#!].*)>))(?P<target>.*)")
+                .unwrap()
         });
 
         // NOTE: This could be more safely done with a parser library, e.g. nom.

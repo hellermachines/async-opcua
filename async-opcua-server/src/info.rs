@@ -110,7 +110,8 @@ impl ServerInfo {
             if !transport_profile_uris.is_empty() {
                 // As we only support binary transport, the result is None if the supplied profile_uris does not contain that profile
                 let found_binary_transport = transport_profile_uris.iter().any(|profile_uri| {
-                    profile_uri.as_ref() == profiles::TRANSPORT_PROFILE_URI_BINARY
+                    profile_uri.as_str().ok().flatten()
+                        == Some(profiles::TRANSPORT_PROFILE_URI_BINARY)
                 });
                 if !found_binary_transport {
                     error!(
@@ -122,7 +123,12 @@ impl ServerInfo {
             }
         }
 
-        if let Ok(hostname) = hostname_from_url(endpoint_url.as_ref()) {
+        if let Some(hostname) = endpoint_url
+            .as_str()
+            .ok()
+            .flatten()
+            .and_then(|url| hostname_from_url(url).ok())
+        {
             if !hostname.eq_ignore_ascii_case(&self.config.tcp_config.host) {
                 debug!("Endpoint url \"{}\" hostname supplied by caller does not match server's hostname \"{}\"", endpoint_url, &self.config.tcp_config.host);
             }
@@ -397,9 +403,12 @@ impl ServerInfo {
                 )),
             }
         } else {
-            Err(Error::new(StatusCode::BadIdentityTokenRejected, format!(
-                "Cannot find endpoint that matches path \"{endpoint_url}\", security policy {security_policy:?}, and security mode {security_mode:?}"
-            )))
+            Err(Error::new(
+                StatusCode::BadIdentityTokenRejected,
+                format!(
+                    "Cannot find endpoint that matches path \"{endpoint_url}\", security policy {security_policy:?}, and security mode {security_mode:?}"
+                ),
+            ))
         }
     }
 
@@ -414,13 +423,22 @@ impl ServerInfo {
         endpoint: &ServerEndpoint,
         token: &AnonymousIdentityToken,
     ) -> Result<UserToken, Error> {
-        if token.policy_id.as_ref() != POLICY_ID_ANONYMOUS {
+        let policy_id = token
+            .policy_id
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadIdentityTokenInvalid,
+                    format!("Identity token policy ID is not valid UTF-8: {error}"),
+                )
+            })?
+            .unwrap_or("");
+        if policy_id != POLICY_ID_ANONYMOUS {
             return Err(Error::new(
                 StatusCode::BadIdentityTokenInvalid,
                 format!(
                     "Token doesn't possess the correct policy id. Got {}, expected {}",
-                    token.policy_id.as_ref(),
-                    POLICY_ID_ANONYMOUS
+                    policy_id, POLICY_ID_ANONYMOUS
                 ),
             ));
         }
@@ -458,8 +476,7 @@ impl ServerInfo {
         } else {
             debug!(
                 "policy id = {}, encryption algorithm = {}",
-                token.policy_id.as_ref(),
-                token.encryption_algorithm.as_ref()
+                token.policy_id, token.encryption_algorithm
             );
             let token_password = if !token.encryption_algorithm.is_empty() {
                 if let Some(ref server_key) = server_key {
@@ -482,10 +499,21 @@ impl ServerInfo {
                 token.plaintext_password()?
             };
 
+            let user_name = token
+                .user_name
+                .as_str()
+                .map_err(|error| {
+                    Error::new(
+                        StatusCode::BadIdentityTokenInvalid,
+                        format!("Identity token user name is not valid UTF-8: {error}"),
+                    )
+                })?
+                .unwrap_or("");
+
             self.authenticator
                 .authenticate_username_identity_token(
                     endpoint,
-                    token.user_name.as_ref(),
+                    user_name,
                     &Password::new(token_password),
                 )
                 .await
@@ -508,7 +536,7 @@ impl ServerInfo {
                 StatusCode::BadIdentityTokenRejected,
                 "Endpoint doesn't support x509 tokens",
             ))
-        } else if token.policy_id.as_ref() != POLICY_ID_X509 {
+        } else if token.policy_id.as_str().ok().flatten() != Some(POLICY_ID_X509) {
             error!("Token doesn't possess the correct policy id");
             Err(Error::new(
                 StatusCode::BadIdentityTokenRejected,
@@ -522,7 +550,11 @@ impl ServerInfo {
                     let security_policy = user_identity_tokens
                         .iter()
                         .find(|t| t.token_type == UserTokenType::Certificate)
-                        .map(|t| SecurityPolicy::from_uri(t.security_policy_uri.as_ref()))
+                        .map(|t| match t.security_policy_uri.as_str() {
+                            Ok(Some(uri)) => SecurityPolicy::from_uri(uri),
+                            Ok(None) => SecurityPolicy::from_uri(""),
+                            Err(_) => SecurityPolicy::Unknown,
+                        })
                         .unwrap_or_else(|| endpoint.security_policy());
 
                     // The security policy has to be something that can encrypt
@@ -579,8 +611,7 @@ impl ServerInfo {
         } else {
             debug!(
                 "policy id = {}, encryption algorithm = {}",
-                token.policy_id.as_ref(),
-                token.encryption_algorithm.as_ref()
+                token.policy_id, token.encryption_algorithm
             );
             let decrypted_token = if !token.encryption_algorithm.is_empty() {
                 if let Some(ref server_key) = server_key {
@@ -638,7 +669,9 @@ impl ServerInfo {
 /// `0.0.0.0` must not return that address. Only the host changes; the other characters of `url`
 /// stay as they are. If `url` has no host, it is returned unchanged.
 pub(crate) fn with_host(url: &UAString, hostname: &str) -> UAString {
-    let text = url.as_ref();
+    let Ok(Some(text)) = url.as_str() else {
+        return url.clone();
+    };
     let Ok(old) = hostname_from_url(text) else {
         return url.clone();
     };
@@ -671,5 +704,11 @@ mod tests {
         assert_eq!(h("opc.tcp://0.0.0.0:4840/", "plc"), "opc.tcp://plc:4840/");
         assert_eq!(h("opc.tcp://Host:4840/a/b", "x"), "opc.tcp://x:4840/a/b");
         assert_eq!(h("not a url", "x"), "not a url");
+    }
+
+    #[test]
+    fn with_host_preserves_non_utf8_urls() {
+        let url = UAString::from(b"opc.tcp://host:4840/\xff".to_vec());
+        assert_eq!(with_host(&url, "replacement").as_bytes(), url.as_bytes());
     }
 }

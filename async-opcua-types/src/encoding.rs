@@ -47,7 +47,12 @@ pub enum BuiltInDataEncoding {
 impl DataEncoding {
     /// Parse data encoding from the browse name in a service call.
     pub fn from_browse_name(name: QualifiedName) -> std::result::Result<Self, StatusCode> {
-        match name.name.as_ref() {
+        let browse_name = name
+            .name
+            .as_str()
+            .map_err(|_| StatusCode::BadDataEncodingInvalid)?
+            .unwrap_or("");
+        match browse_name {
             "Default Binary" | "" => Ok(Self::Binary),
             "Default XML" => Ok(Self::XML),
             "Default JSON" => Ok(Self::JSON),

@@ -74,7 +74,12 @@ impl TypeLoader for MyTypeLoader {
         let Identifier::String(s) = &node_id.identifier else {
             return None;
         };
-        if !s.as_ref().contains("customtype") {
+        if !s
+            .as_str()
+            .ok()
+            .flatten()
+            .is_some_and(|value| value.contains("customtype"))
+        {
             return None;
         }
         Some(xml_decode_to_enc::<CustomType>(stream, ctx))
@@ -89,7 +94,12 @@ impl TypeLoader for MyTypeLoader {
         let Identifier::String(s) = &node_id.identifier else {
             return None;
         };
-        if !s.as_ref().contains("customtype") {
+        if !s
+            .as_str()
+            .ok()
+            .flatten()
+            .is_some_and(|value| value.contains("customtype"))
+        {
             return None;
         }
         Some(json_decode_to_enc::<CustomType>(stream, ctx))
@@ -105,7 +115,12 @@ impl TypeLoader for MyTypeLoader {
         let Identifier::String(s) = &node_id.identifier else {
             return None;
         };
-        if !s.as_ref().contains("customtype") {
+        if !s
+            .as_str()
+            .ok()
+            .flatten()
+            .is_some_and(|value| value.contains("customtype"))
+        {
             return None;
         }
         Some(binary_decode_to_enc::<CustomType>(stream, ctx))

@@ -36,7 +36,12 @@ impl ParsedStructureField {
             return Err("Field has null name".to_owned());
         }
         Ok(Self {
-            name: f.name.as_ref().to_owned(),
+            name: f
+                .name
+                .as_str()
+                .map_err(|error| format!("Field name was not valid UTF-8: {error}"))?
+                .unwrap_or_default()
+                .to_owned(),
             type_id: f.data_type,
             value_rank: f.value_rank,
             array_dimensions: f.array_dimensions,
@@ -64,8 +69,11 @@ impl ParsedStructureField {
                 if rank as i32 != self.value_rank {
                     return Err(Error::new(
                         StatusCode::BadInvalidArgument,
-                    format!("Invalid dimensions, array dimensions {:?} length must match field value rank {}",
-                        dims, self.value_rank)));
+                        format!(
+                            "Invalid dimensions, array dimensions {:?} length must match field value rank {}",
+                            dims, self.value_rank
+                        ),
+                    ));
                 }
                 ty
             }
@@ -303,7 +311,7 @@ impl ParentIds {
                 // ExtensionObject in this context just means "Structure", which is what
                 // the base type in the type hierarchy is.
                 crate::DataTypeId::Structure | crate::DataTypeId::Decimal => {
-                    return Some(VariantScalarTypeId::ExtensionObject)
+                    return Some(VariantScalarTypeId::ExtensionObject);
                 }
                 crate::DataTypeId::DataValue => return Some(VariantScalarTypeId::DataValue),
                 crate::DataTypeId::DiagnosticInfo => {

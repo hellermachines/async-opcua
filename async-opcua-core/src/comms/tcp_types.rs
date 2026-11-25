@@ -320,7 +320,13 @@ impl HelloMessage {
         endpoints.iter().any(|e| {
             // Server might have different hostname than that supplied by client, so
             // ignore that bit.
-            url_matches_except_host(e.endpoint_url.as_ref(), self.endpoint_url.as_ref())
+            let Ok(Some(endpoint_url)) = e.endpoint_url.as_str() else {
+                return false;
+            };
+            let Ok(Some(requested_url)) = self.endpoint_url.as_str() else {
+                return false;
+            };
+            url_matches_except_host(endpoint_url, requested_url)
         })
     }
 

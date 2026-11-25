@@ -77,7 +77,8 @@ impl CertificateStore {
         x509_data: Option<X>,
     ) -> (CertificateStore, Option<X509>, Option<PrivateKey>)
     where
-        X: Into<X509Data>,
+        X: TryInto<X509Data>,
+        X::Error: std::fmt::Display,
     {
         let mut certificate_store = CertificateStore::new(pki_path);
         if let (Some(cert_path), Some(pkey_path)) = (cert_path, pkey_path) {
@@ -94,9 +95,13 @@ impl CertificateStore {
                 (Ok(cert), Ok(pkey), _) => (Some(cert), Some(pkey)),
                 (_, _, Some(x509_data)) => {
                     info!("Creating sample application instance certificate and private key");
-                    let x509_data = x509_data.into();
-                    let result = certificate_store
-                        .create_and_store_application_instance_cert(&x509_data, overwrite);
+                    let result = x509_data
+                        .try_into()
+                        .map_err(|error| format!("Invalid certificate data: {error}"))
+                        .and_then(|data| {
+                            certificate_store
+                                .create_and_store_application_instance_cert(&data, overwrite)
+                        });
                     match result {
                         Ok((cert, pkey)) => (Some(cert), Some(pkey)),
                         Err(err) => {

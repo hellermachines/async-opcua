@@ -185,28 +185,26 @@ macro_rules! cast_to_bool {
 }
 
 macro_rules! cast_to_integer {
-    ($value: expr, $from: ident, $to: ident) => {
-        {
-            // 64-bit values are the highest supported by OPC UA, so this code will cast
-            // and compare values using signed / unsigned types to determine if they're in range.
-            let valid = if $value < 0 as $from {
-                // Negative values can only go into a signed type and only when the value is greater
-                // or equal to the MIN
-                $to::MIN != 0 && $value as i64 >= $to::MIN as i64
-            } else {
-                // Positive values can only go into the type only when the value is less than or equal
-                // to the MAX.
-                $value as u64 <= $to::MAX as u64
-            };
-            if !valid {
-                // Value is out of range
-                // error!("Value {} is outside of the range of receiving in type {}..{}", $value, $to::MIN, $to::MAX);
-                Variant::Empty
-            } else {
-                ($value as $to).into()
-            }
+    ($value: expr, $from: ident, $to: ident) => {{
+        // 64-bit values are the highest supported by OPC UA, so this code will cast
+        // and compare values using signed / unsigned types to determine if they're in range.
+        let valid = if $value < 0 as $from {
+            // Negative values can only go into a signed type and only when the value is greater
+            // or equal to the MIN
+            $to::MIN != 0 && $value as i64 >= $to::MIN as i64
+        } else {
+            // Positive values can only go into the type only when the value is less than or equal
+            // to the MAX.
+            $value as u64 <= $to::MAX as u64
+        };
+        if !valid {
+            // Value is out of range
+            // error!("Value {} is outside of the range of receiving in type {}..{}", $value, $to::MIN, $to::MAX);
+            Variant::Empty
+        } else {
+            ($value as $to).into()
         }
-    }
+    }};
 }
 
 impl Variant {
@@ -392,9 +390,14 @@ impl BinaryDecodable for Variant {
             // Array length in total cannot exceed max array length
             let array_length = array_length as usize;
             if array_length > ctx.options().max_array_length {
-                return Err(Error::new(StatusCode::BadEncodingLimitsExceeded, format!(
-                    "Variant array has length {} which exceeds configured array length limit {}", array_length, ctx.options().max_array_length
-                )));
+                return Err(Error::new(
+                    StatusCode::BadEncodingLimitsExceeded,
+                    format!(
+                        "Variant array has length {} which exceeds configured array length limit {}",
+                        array_length,
+                        ctx.options().max_array_length
+                    ),
+                ));
             }
 
             let mut values: Vec<Variant> = Vec::with_capacity(array_length);
@@ -760,7 +763,10 @@ impl Variant {
                     if v.is_null() {
                         Variant::Empty
                     } else {
-                        NodeId::from_str(v.as_ref())
+                        v.as_str()
+                            .ok()
+                            .flatten()
+                            .and_then(|value| NodeId::from_str(value).ok())
                             .map(|v| v.into())
                             .unwrap_or(Variant::Empty)
                     }
@@ -769,7 +775,10 @@ impl Variant {
                     if v.is_null() {
                         Variant::Empty
                     } else {
-                        ExpandedNodeId::from_str(v.as_ref())
+                        v.as_str()
+                            .ok()
+                            .flatten()
+                            .and_then(|value| ExpandedNodeId::from_str(value).ok())
                             .map(|v| v.into())
                             .unwrap_or(Variant::Empty)
                     }
@@ -778,7 +787,10 @@ impl Variant {
                     if v.is_null() {
                         Variant::Empty
                     } else {
-                        DateTime::from_str(v.as_ref())
+                        v.as_str()
+                            .ok()
+                            .flatten()
+                            .and_then(|value| DateTime::from_str(value).ok())
                             .map(|v| v.into())
                             .unwrap_or(Variant::Empty)
                     }
@@ -787,14 +799,18 @@ impl Variant {
                     if v.is_null() {
                         LocalizedText::null().into()
                     } else {
-                        LocalizedText::new("", v.as_ref()).into()
+                        LocalizedText {
+                            locale: UAString::from(""),
+                            text: v.clone(),
+                        }
+                        .into()
                     }
                 }
                 VariantScalarTypeId::QualifiedName => {
                     if v.is_null() {
                         QualifiedName::null().into()
                     } else {
-                        QualifiedName::new(0, v.as_ref()).into()
+                        QualifiedName::new(0, v.clone()).into()
                     }
                 }
                 _ => Variant::Empty,
@@ -1043,7 +1059,9 @@ impl Variant {
                 if v.is_empty() {
                     Variant::Empty
                 } else {
-                    let v = v.as_ref();
+                    let Ok(Some(v)) = v.as_str() else {
+                        return Variant::Empty;
+                    };
                     match target_type {
                         VariantScalarTypeId::Boolean => {
                             // String values containing “true”, “false”, “1” or “0” can be converted
@@ -1116,7 +1134,11 @@ impl Variant {
                             LocalizedText::null().into()
                         } else {
                             // empty locale, drop namespace index
-                            LocalizedText::new("", v.name.as_ref()).into()
+                            LocalizedText {
+                                locale: UAString::from(""),
+                                text: v.name.clone(),
+                            }
+                            .into()
                         }
                     }
                     _ => Variant::Empty,

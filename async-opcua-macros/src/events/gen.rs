@@ -173,7 +173,10 @@ pub(crate) fn generate_event_impls(event: EventStruct) -> syn::Result<TokenStrea
                     return opcua::types::Variant::Empty;
                 }
                 let field = &browse_path[0];
-                match field.name.as_ref() {
+                let Ok(Some(field_name)) = field.name.as_str() else {
+                    return opcua::types::Variant::Empty;
+                };
+                match field_name {
                     #get_arms
                     _ => {
                         #placeholder_fields

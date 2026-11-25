@@ -530,7 +530,7 @@ impl SecureChannel {
                     let x509 = self.remote_cert().ok_or_else(|| {
                         Error::new(
                             StatusCode::BadCertificateInvalid,
-                            "Missing server certificate, this is required for asymmetric encryption"
+                            "Missing server certificate, this is required for asymmetric encryption",
                         )
                     })?;
                     let pk = x509.public_key()?;
@@ -570,7 +570,15 @@ impl SecureChannel {
         } else {
             0
         };
-        trace!("sequence_header(8) + body({}) + signature ({}) = plain text size = {} / with padding {} = {}, plain_text_block_size = {}", body_size, signature_size, encrypt_size, padding_size, encrypt_size + padding_size, plain_text_block_size);
+        trace!(
+            "sequence_header(8) + body({}) + signature ({}) = plain text size = {} / with padding {} = {}, plain_text_block_size = {}",
+            body_size,
+            signature_size,
+            encrypt_size,
+            padding_size,
+            encrypt_size + padding_size,
+            plain_text_block_size
+        );
         Ok((minimum_padding + padding_size, minimum_padding))
     }
 
@@ -703,7 +711,11 @@ impl SecureChannel {
         } else {
             let size = message_chunk.data.len();
             if size > dst.len() {
-                error!("The size of the message chunk {} exceeds the size of the destination buffer {}", size, dst.len());
+                error!(
+                    "The size of the message chunk {} exceeds the size of the destination buffer {}",
+                    size,
+                    dst.len()
+                );
                 return Err(StatusCode::BadEncodingLimitsExceeded);
             }
             dst[..size].copy_from_slice(&message_chunk.data[..]);
@@ -763,13 +775,25 @@ impl SecureChannel {
         };
 
         // The security policy dictates the encryption / signature algorithms used by the request
-        let security_policy_uri = security_header.security_policy_uri.as_ref();
+        let security_policy_uri = security_header
+            .security_policy_uri
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadSecurityPolicyRejected,
+                    format!("Security policy URI is not valid UTF-8: {error}"),
+                )
+            })?
+            .unwrap_or("");
         let security_policy = SecurityPolicy::from_uri(security_policy_uri);
         match security_policy {
             SecurityPolicy::Unknown => {
-                return Err(Error::new(StatusCode::BadSecurityPolicyRejected, format!(
+                return Err(Error::new(
+                    StatusCode::BadSecurityPolicyRejected,
+                    format!(
                         "Security policy \"{security_policy_uri}\" provided by client is unknown so it is has been rejected"
-                    )));
+                    ),
+                ));
             }
             SecurityPolicy::None => {
                 // Nothing to do
@@ -950,7 +974,10 @@ impl SecureChannel {
         let signed_range = 0..(encrypted_range.end - signing_key_size);
         let signature_range = signed_range.end..encrypted_range.end;
 
-        trace!("Header size = {}, Encrypted range = {:?}, Signed range = {:?}, Signature range = {:?}, signature size = {}", header_size, encrypted_range, signed_range, signature_range, signing_key_size);
+        trace!(
+            "Header size = {}, Encrypted range = {:?}, Signed range = {:?}, Signature range = {:?}, signature size = {}",
+            header_size, encrypted_range, signed_range, signature_range, signing_key_size
+        );
 
         let encryption_key = self.remote_cert.as_ref().unwrap().public_key()?;
 
@@ -1038,7 +1065,10 @@ impl SecureChannel {
             let padding_size = ((extra_padding_byte as usize) << 8) + (padding_byte as usize);
             let padding_range = (padding_end - padding_size - 2)..padding_end;
 
-            trace!("Extra padding - extra_padding_byte = {}, padding_byte = {}, padding_end = {}, padding_size = {}", extra_padding_byte, padding_byte, padding_end, padding_size);
+            trace!(
+                "Extra padding - extra_padding_byte = {}, padding_byte = {}, padding_end = {}, padding_size = {}",
+                extra_padding_byte, padding_byte, padding_end, padding_size
+            );
 
             // Check padding bytes and extra padding byte
             Self::check_padding_bytes(
@@ -1084,9 +1114,12 @@ impl SecureChannel {
     ) -> Result<usize, Error> {
         // Asymmetric encrypt requires the caller supply the security policy
         if !security_policy.is_supported() {
-            return Err(Error::new(StatusCode::BadSecurityPolicyRejected, format!(
-                "Security policy {security_policy} is not supported by asymmetric_decrypt_and_verify and has been rejected"
-            )));
+            return Err(Error::new(
+                StatusCode::BadSecurityPolicyRejected,
+                format!(
+                    "Security policy {security_policy} is not supported by asymmetric_decrypt_and_verify and has been rejected"
+                ),
+            ));
         }
 
         // Unlike the symmetric_decrypt_and_verify, this code will ALWAYS decrypt and verify regardless
@@ -1275,7 +1308,10 @@ impl SecureChannel {
                 size
             }
             MessageSecurityMode::SignAndEncrypt => {
-                trace!("encrypt_and_sign security mode == SignAndEncrypt, signed_range = {:?}, encrypted_range = {:?}", signed_range, encrypted_range);
+                trace!(
+                    "encrypt_and_sign security mode == SignAndEncrypt, signed_range = {:?}, encrypted_range = {:?}",
+                    signed_range, encrypted_range
+                );
                 self.expect_supported_security_policy();
 
                 // Sign the block

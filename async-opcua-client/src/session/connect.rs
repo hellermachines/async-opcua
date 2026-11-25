@@ -42,7 +42,7 @@ impl SessionConnector {
     ) -> Result<(SecureChannelEventLoop<T::Transport>, SessionConnectMode), Error> {
         let span = info_span!(
             "Attempting to create and activate session to server",
-            endpoint_url = connector.default_endpoint().endpoint_url.as_ref()
+            endpoint_url = %connector.default_endpoint().endpoint_url
         );
         let mut event_loop = self
             .inner

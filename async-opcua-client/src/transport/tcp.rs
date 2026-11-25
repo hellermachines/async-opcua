@@ -214,7 +214,10 @@ impl ReverseTcpConnector {
         let ep = target_endpoint.clone();
         Self {
             verifier: Arc::new(move |endpoint_url: &str, _: &str| {
-                let expected_url = ep.endpoint_url.as_ref().trim_end_matches("/");
+                let Ok(Some(expected_url)) = ep.endpoint_url.as_str() else {
+                    return Err(StatusCode::BadTcpEndpointUrlInvalid);
+                };
+                let expected_url = expected_url.trim_end_matches("/");
                 if expected_url == endpoint_url.trim_end_matches("/") {
                     Ok(())
                 } else {
@@ -258,11 +261,38 @@ impl ReverseTcpConnector {
         let reverse_hello = wait_for_reverse_hello(&mut framed_read).await?;
 
         // Verify the server URI
+        let hello_endpoint_url = reverse_hello
+            .endpoint_url
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    format!("ReverseHello endpoint URL is not valid UTF-8: {error}"),
+                )
+            })?
+            .ok_or_else(|| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    "ReverseHello endpoint URL is null",
+                )
+            })?;
+        let server_uri = reverse_hello
+            .server_uri
+            .as_str()
+            .map_err(|error| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    format!("ReverseHello server URI is not valid UTF-8: {error}"),
+                )
+            })?
+            .ok_or_else(|| {
+                Error::new(
+                    StatusCode::BadTcpEndpointUrlInvalid,
+                    "ReverseHello server URI is null",
+                )
+            })?;
         verifier
-            .verify(
-                reverse_hello.endpoint_url.as_ref(),
-                reverse_hello.server_uri.as_ref(),
-            )
+            .verify(hello_endpoint_url, server_uri)
             .map_err(|e| Error::new(e, "Failed to verify URIs in reverse hello message"))?;
 
         Ok(StreamConnection::new(

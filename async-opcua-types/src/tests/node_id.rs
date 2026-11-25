@@ -123,7 +123,7 @@ fn expanded_node_id() {
     // Test escaping from a string
     let node_id = ExpandedNodeId::from_str("svr=5;nsu=foo%3b%25;i=22").unwrap();
     assert_eq!(node_id.server_index, 5);
-    assert_eq!(node_id.namespace_uri.as_ref(), "foo;%");
+    assert_eq!(node_id.namespace_uri.as_str().ok().flatten(), Some("foo;%"));
     assert_eq!(node_id.node_id, NodeId::from_str("i=22").unwrap());
 
     // Test escaping into a string

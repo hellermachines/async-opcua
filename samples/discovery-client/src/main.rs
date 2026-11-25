@@ -63,7 +63,11 @@ async fn main() -> Result<(), ()> {
                     println!("Server : {}", server.application_name);
                     if let Some(ref discovery_urls) = server.discovery_urls {
                         for discovery_url in discovery_urls {
-                            print_server_endpoints(discovery_url.as_ref()).await
+                            if let Ok(Some(url)) = discovery_url.as_str() {
+                                print_server_endpoints(url).await;
+                            } else {
+                                println!("  Invalid discovery URL: {discovery_url}");
+                            }
                         }
                     } else {
                         println!("  No discovery urls for this server");
@@ -92,11 +96,16 @@ async fn print_server_endpoints(discovery_url: &str) {
             Result::Ok(endpoints) => {
                 println!("    Server has these endpoints:");
                 endpoints.iter().for_each(|e| {
+                    let security_policy = e
+                        .security_policy_uri
+                        .as_str()
+                        .ok()
+                        .flatten()
+                        .and_then(|uri| SecurityPolicy::from_str(uri).ok())
+                        .unwrap_or(SecurityPolicy::Unknown);
                     println!(
                         "      {} - {:?} / {:?}",
-                        e.endpoint_url,
-                        SecurityPolicy::from_str(e.security_policy_uri.as_ref()).unwrap(),
-                        e.security_mode
+                        e.endpoint_url, security_policy, e.security_mode
                     );
                 });
             }

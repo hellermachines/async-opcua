@@ -80,7 +80,10 @@ impl_from_variant_primitive_unbox!(DiagnosticInfo, DiagnosticInfo);
 
 impl TryFromVariant for String {
     fn try_from_variant(v: Variant) -> Result<Self, Error> {
-        Ok(UAString::try_from_variant(v)?.into())
+        UAString::try_from_variant(v)?
+            .as_str()
+            .map_err(|error| Error::decoding(format!("String was not valid UTF-8: {error}")))
+            .map(|value| value.unwrap_or_default().to_owned())
     }
 }
 
@@ -164,7 +167,7 @@ where
                 return Err(Error::new(
                     StatusCode::BadTypeMismatch,
                     "Attempted to cast empty variant to array",
-                ))
+                ));
             }
             Variant::Array(a) => {
                 if N != a.values.len() {

@@ -104,7 +104,9 @@ impl EndpointDescription {
     /// Returns a reference to a policy that matches the supplied policy id
     pub fn find_policy_by_id(&self, policy_id: &str) -> Option<&UserTokenPolicy> {
         if let Some(ref policies) = self.user_identity_tokens {
-            policies.iter().find(|t| t.policy_id.as_ref() == policy_id)
+            policies
+                .iter()
+                .find(|t| t.policy_id.as_str().ok().flatten() == Some(policy_id))
         } else {
             None
         }

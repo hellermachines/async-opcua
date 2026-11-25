@@ -432,7 +432,8 @@ async fn connect_when_the_endpoint_certificate_carries_a_chain() {
         .unwrap()
         .into_iter()
         .find(|e| {
-            e.security_policy_uri.as_ref() == SecurityPolicy::Basic256Sha256.to_uri()
+            e.security_policy_uri.as_str().ok().flatten()
+                == Some(SecurityPolicy::Basic256Sha256.to_uri())
                 && e.security_mode == MessageSecurityMode::SignAndEncrypt
         })
         .unwrap();
@@ -469,9 +470,18 @@ async fn find_servers() {
     let discovery_urls = s.discovery_urls.as_ref().unwrap();
     assert!(!discovery_urls.is_empty());
     assert_eq!(s.application_type, ApplicationType::Server);
-    assert_eq!(s.application_name.text.as_ref(), "integration_server");
-    assert_eq!(s.application_uri.as_ref(), "urn:integration_server");
-    assert_eq!(s.product_uri.as_ref(), "urn:integration_server Testkit");
+    assert_eq!(
+        s.application_name.text.as_str().ok().flatten(),
+        Some("integration_server")
+    );
+    assert_eq!(
+        s.application_uri.as_str().ok().flatten(),
+        Some("urn:integration_server")
+    );
+    assert_eq!(
+        s.product_uri.as_str().ok().flatten(),
+        Some("urn:integration_server Testkit")
+    );
 }
 
 /// The server is configured with a host name. A client that dials the server by its IP address
@@ -491,12 +501,18 @@ async fn discovery_urls_name_the_host_the_client_dialled() {
     assert!(!endpoints.is_empty());
     for e in &endpoints {
         assert!(
-            e.endpoint_url.as_ref().starts_with(&dialled),
+            e.endpoint_url
+                .as_str()
+                .is_ok_and(|url| url.is_some_and(|url| url.starts_with(&dialled))),
             "{}",
             e.endpoint_url
         );
         for u in e.server.discovery_urls.as_ref().unwrap() {
-            assert!(u.as_ref().starts_with(&dialled), "{u}");
+            assert!(
+                u.as_str()
+                    .is_ok_and(|url| url.is_some_and(|url| url.starts_with(&dialled))),
+                "{u}"
+            );
         }
     }
 
@@ -509,7 +525,11 @@ async fn discovery_urls_name_the_host_the_client_dialled() {
     let discovery_urls = servers[0].discovery_urls.as_ref().unwrap();
     assert!(!discovery_urls.is_empty());
     for u in discovery_urls {
-        assert!(u.as_ref().starts_with(&dialled), "{u}");
+        assert!(
+            u.as_str()
+                .is_ok_and(|url| url.is_some_and(|url| url.starts_with(&dialled))),
+            "{u}"
+        );
     }
 }
 

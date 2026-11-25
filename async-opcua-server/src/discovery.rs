@@ -39,8 +39,13 @@ async fn register_with_discovery_server(
                 }
             };
 
+            let Ok(Some(endpoint_url)) = endpoint.endpoint_url.as_str() else {
+                error!("Discovery server returned a missing or invalid UTF-8 endpoint URL");
+                return;
+            };
+
             match client
-                .register_server(endpoint.endpoint_url.as_ref(), &endpoint, registered_server)
+                .register_server(endpoint_url, &endpoint, registered_server)
                 .await
             {
                 Ok(_) => {}

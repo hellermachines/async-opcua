@@ -92,8 +92,8 @@ fn user_name_identity_token_encrypted() {
     )
     .unwrap();
     assert_eq!(
-        token.encryption_algorithm.as_ref(),
-        crypto::algorithms::ENC_RSA_15
+        token.encryption_algorithm.as_str().ok().flatten(),
+        Some(crypto::algorithms::ENC_RSA_15)
     );
     let password1 = legacy_decrypt_secret(&token, nonce.as_ref(), &pkey).unwrap();
     assert_eq!(
@@ -113,8 +113,8 @@ fn user_name_identity_token_encrypted() {
     )
     .unwrap();
     assert_eq!(
-        token.encryption_algorithm.as_ref(),
-        crypto::algorithms::ENC_RSA_15
+        token.encryption_algorithm.as_str().ok().flatten(),
+        Some(crypto::algorithms::ENC_RSA_15)
     );
     let password1 = legacy_decrypt_secret(&token, nonce.as_ref(), &pkey).unwrap();
     assert_eq!(
@@ -134,8 +134,8 @@ fn user_name_identity_token_encrypted() {
     )
     .unwrap();
     assert_eq!(
-        token.encryption_algorithm.as_ref(),
-        crypto::algorithms::ENC_RSA_OAEP
+        token.encryption_algorithm.as_str().ok().flatten(),
+        Some(crypto::algorithms::ENC_RSA_OAEP)
     );
     let password1 = legacy_decrypt_secret(&token, nonce.as_ref(), &pkey).unwrap();
     assert_eq!(
@@ -156,8 +156,8 @@ fn user_name_identity_token_encrypted() {
     )
     .unwrap();
     assert_eq!(
-        token.encryption_algorithm.as_ref(),
-        crypto::algorithms::ENC_RSA_OAEP_SHA256
+        token.encryption_algorithm.as_str().ok().flatten(),
+        Some(crypto::algorithms::ENC_RSA_OAEP_SHA256)
     );
     let password1 = legacy_decrypt_secret(&token, nonce.as_ref(), &pkey).unwrap();
     assert_eq!(

@@ -132,6 +132,11 @@ mod json {
                 stream.null_value()?;
                 return Ok(());
             }
+            let _ = self.name.as_str().map_err(|error| {
+                crate::Error::encoding(format!(
+                    "Cannot encode invalid UTF-8 QualifiedName as JSON: {error}"
+                ))
+            })?;
             stream.string_value(&self.to_string())?;
             Ok(())
         }

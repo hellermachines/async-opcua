@@ -131,7 +131,10 @@ impl Session {
 
         if self.session_timeout < elapsed {
             // This will eventually be collected by the timeout monitor.
-            error!("Session has timed out because too much time has elapsed between service calls - elapsed time = {}ms", elapsed.as_millis());
+            error!(
+                "Session has timed out because too much time has elapsed between service calls - elapsed time = {}ms",
+                elapsed.as_millis()
+            );
             Err(StatusCode::BadSessionIdInvalid)
         } else {
             Ok(())
@@ -322,8 +325,8 @@ impl Session {
     }
 
     /// Get the name of this session as set by the client.
-    pub fn session_name(&self) -> &str {
-        self.session_name.as_ref()
+    pub fn session_name(&self) -> &UAString {
+        &self.session_name
     }
 
     /// Get the security policy URI of this session.

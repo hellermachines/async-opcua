@@ -58,7 +58,17 @@ impl SecurityHeader {
             let security_policy = if security_header.security_policy_uri.is_empty() {
                 SecurityPolicy::None
             } else {
-                SecurityPolicy::from_uri(security_header.security_policy_uri.as_ref())
+                let policy_uri = security_header
+                    .security_policy_uri
+                    .as_str()
+                    .map_err(|error| {
+                        Error::new(
+                            StatusCode::BadSecurityPolicyRejected,
+                            format!("Security policy URI is not valid UTF-8: {error}"),
+                        )
+                    })?
+                    .unwrap_or("");
+                SecurityPolicy::from_uri(policy_uri)
             };
 
             if security_policy == SecurityPolicy::Unknown {

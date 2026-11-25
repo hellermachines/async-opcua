@@ -101,7 +101,10 @@ pub trait Config: serde::Serialize {
     fn application_description(&self) -> ApplicationDescription {
         ApplicationDescription {
             application_uri: self.application_uri(),
-            application_name: LocalizedText::new("", self.application_name().as_ref()),
+            application_name: LocalizedText {
+                locale: UAString::from(""),
+                text: self.application_name(),
+            },
             application_type: self.application_type(),
             product_uri: self.product_uri(),
             gateway_server_uri: UAString::null(),

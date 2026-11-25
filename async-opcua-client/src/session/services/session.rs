@@ -310,16 +310,7 @@ impl<'a> CreateSession<'a> {
         }
 
         // Validate server certificate against hostname and application_uri
-        let hostname = hostname_from_url(endpoint.endpoint_url.as_ref()).map_err(|e| {
-            Error::new(
-                StatusCode::BadUnexpectedError,
-                format!(
-                    "Failed to extract hostname from endpoint URL ({}): {e}",
-                    endpoint.endpoint_url
-                ),
-            )
-        })?;
-        let application_uri = endpoint.server.application_uri.as_ref();
+        let (hostname, application_uri) = certificate_endpoint_names(endpoint)?;
 
         let certificate_store = trace_write_lock!(certificate_store);
         certificate_store
@@ -332,9 +323,42 @@ impl<'a> CreateSession<'a> {
             .inspect_err(|e| {
                 error!("Rejected server certificate in create session response: {e}");
             })?;
-
         Ok(Some(server_certificate))
     }
+}
+
+fn certificate_endpoint_names(endpoint: &EndpointDescription) -> Result<(String, &str), Error> {
+    let endpoint_url = endpoint
+        .endpoint_url
+        .as_str()
+        .map_err(|error| {
+            Error::new(
+                StatusCode::BadTcpEndpointUrlInvalid,
+                format!("Endpoint URL is not valid UTF-8: {error}"),
+            )
+        })?
+        .ok_or_else(|| Error::new(StatusCode::BadTcpEndpointUrlInvalid, "Endpoint URL is null"))?;
+    let hostname = hostname_from_url(endpoint_url).map_err(|e| {
+        Error::new(
+            StatusCode::BadUnexpectedError,
+            format!(
+                "Failed to extract hostname from endpoint URL ({}): {e}",
+                endpoint.endpoint_url
+            ),
+        )
+    })?;
+    let application_uri = endpoint
+        .server
+        .application_uri
+        .as_str()
+        .map_err(|error| {
+            Error::new(
+                StatusCode::BadCertificateInvalid,
+                format!("Application URI is not valid UTF-8: {error}"),
+            )
+        })?
+        .unwrap_or("");
+    Ok((hostname, application_uri))
 }
 
 #[derive(Debug, Clone)]
@@ -465,7 +489,17 @@ impl ActivateSession {
             // Assume None
             SecurityPolicy::None
         } else {
-            SecurityPolicy::from_uri(policy.security_policy_uri.as_ref())
+            let policy_uri = policy
+                .security_policy_uri
+                .as_str()
+                .map_err(|error| {
+                    Error::new(
+                        StatusCode::BadSecurityPolicyRejected,
+                        format!("Security policy URI is not valid UTF-8: {error}"),
+                    )
+                })?
+                .unwrap_or("");
+            SecurityPolicy::from_uri(policy_uri)
         };
 
         if security_policy == SecurityPolicy::Unknown {
@@ -492,22 +526,14 @@ impl ActivateSession {
                     "Missing server certificate for encrypting user token",
                 )
             })?;
-            let hostname = hostname_from_url(self.endpoint.endpoint_url.as_ref()).map_err(|e| {
-                Error::new(
-                    StatusCode::BadUnexpectedError,
-                    format!(
-                        "Failed to extract hostname from endpoint URL ({}): {e}",
-                        self.endpoint.endpoint_url
-                    ),
-                )
-            })?;
+            let (hostname, application_uri) = certificate_endpoint_names(&self.endpoint)?;
             let certificate_store = trace_write_lock!(certificate_store);
             certificate_store
                 .validate_or_reject_application_instance_cert(
                     server_certificate,
                     security_policy,
                     Some(&hostname),
-                    Some(self.endpoint.server.application_uri.as_ref()),
+                    Some(application_uri),
                 )
                 .inspect_err(|e| {
                     error!("Rejected server certificate used to encrypt user token: {e}");

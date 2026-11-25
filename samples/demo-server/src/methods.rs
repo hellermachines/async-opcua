@@ -71,9 +71,10 @@ pub fn add_methods(manager: Arc<SimpleNodeManager>, ns: u16) {
             return Err(StatusCode::BadTypeMismatch);
         };
 
-        Ok(vec![Variant::String(
-            format!("Hello {}!", s.as_ref()).into(),
-        )])
+        let mut greeting = b"Hello ".to_vec();
+        greeting.extend_from_slice(s.as_bytes().unwrap_or_default());
+        greeting.push(b'!');
+        Ok(vec![Variant::String(greeting.into())])
     });
 
     // Boop has 1 one input and 0 output

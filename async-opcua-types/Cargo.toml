@@ -25,6 +25,7 @@ name = "opcua_types"
 [dependencies]
 base64 = { workspace = true }
 bitflags = { workspace = true }
+bstr = { workspace = true }
 byteorder = { workspace = true }
 chrono = { workspace = true }
 hashbrown = { workspace = true }

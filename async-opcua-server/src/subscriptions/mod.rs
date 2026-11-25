@@ -470,7 +470,7 @@ impl SubscriptionCache {
         PersistentSessionKey::new(
             lck.user_token().unwrap(),
             lck.message_security_mode(),
-            lck.application_description().application_uri.as_ref(),
+            &lck.application_description().application_uri,
         )
     }
 
@@ -729,15 +729,19 @@ struct NonAckedPublish {
 struct PersistentSessionKey {
     token: UserToken,
     security_mode: MessageSecurityMode,
-    application_uri: String,
+    application_uri: Vec<u8>,
 }
 
 impl PersistentSessionKey {
-    fn new(token: &UserToken, security_mode: MessageSecurityMode, application_uri: &str) -> Self {
+    fn new(
+        token: &UserToken,
+        security_mode: MessageSecurityMode,
+        application_uri: &opcua_types::UAString,
+    ) -> Self {
         Self {
             token: token.clone(),
             security_mode,
-            application_uri: application_uri.to_owned(),
+            application_uri: application_uri.as_bytes().unwrap_or_default().to_vec(),
         }
     }
 
